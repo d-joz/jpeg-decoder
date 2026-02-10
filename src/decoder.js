@@ -268,6 +268,39 @@ export class Decoder {
     }
     return deQuantized;
   }
+
+  #inverseDCT(coeffs) {
+    // idct for rows
+    const temp = Array.from({ length: 8 }, () => []);
+    for (let y = 0; y < 8; y++) {
+      for (let x = 0; x < 8; x++) {
+        let sum = 0;
+        let ci = Math.SQRT1_2;
+        for (let i = 0; i < 8; i++) {
+          sum += ci * coeffs[(y * 8) + i] *
+            Math.cos(((2 * x) + 1) * i * Math.PI / 16);
+          ci = 1;
+        }
+        temp[y][x] = sum / 2;
+      }
+    }
+
+    const final = Array.from({ length: 8 }, () => []);
+    for (let x = 0; x < 8; x++) {
+      for (let y = 0; y < 8; y++) {
+        let sum = 0;
+        let ci = Math.SQRT1_2;
+        for (let i = 0; i < 8; i++) {
+          sum += ci * temp[i][x] *  
+            Math.cos(((2 * y) + 1) * i * Math.PI / 16);
+          ci = 1;
+        }
+
+        final[y][x] = sum / 2;
+      }
+    }
+    return final;
+  }
   #processComponentBlock(id) {
     const {
       huffanTableDC,
@@ -276,7 +309,8 @@ export class Decoder {
     } = this.#getTables(id);
     const quantizedBlock = this.#huffmanDecode(huffanTableDC, huffanTableAC);
     const DCTBlock = this.#deQuantize(quantizedBlock, quantizationTable);
-    return DCTBlock;
+    const IDCTBlock = this.#inverseDCT(DCTBlock);
+    return IDCTBlock;
   }
   #processMCU() {
     const MCU = [];
@@ -296,7 +330,6 @@ export class Decoder {
     }
     console.log("* processing data bits: done");
     console.log(this.MCU);
-    
   }
 
   async decode(path) {
@@ -305,7 +338,6 @@ export class Decoder {
       this.image = [...await Deno.readFile(path)];
       this.#processHeaders();
       this.#processData();
-
     } catch (error) {
       console.log(error.message);
       // console.log(error);
