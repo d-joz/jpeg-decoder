@@ -1,4 +1,5 @@
 import { chunk } from "jsr:@std/collections";
+import { zigZag } from "./constants.js";
 
 export class Decoder {
   constructor() {
@@ -260,13 +261,22 @@ export class Decoder {
     block.push(...this.#getACCoeffs(ACTable));
     return block;
   }
+  #deQuantize(block, table) {
+    const deQuantized = [];
+    for (let i = 0; i < block.length; i++) {
+      deQuantized[zigZag[i]] = block[i] * table[i];
+    }
+    return deQuantized;
+  }
   #processComponentBlock(id) {
     const {
       huffanTableDC,
       huffanTableAC,
       quantizationTable,
     } = this.#getTables(id);
-    return this.#huffmanDecode(huffanTableDC, huffanTableAC);
+    const quantizedBlock = this.#huffmanDecode(huffanTableDC, huffanTableAC);
+    const DCTBlock = this.#deQuantize(quantizedBlock, quantizationTable);
+    return DCTBlock;
   }
   #processMCU() {
     const MCU = [];
@@ -285,6 +295,8 @@ export class Decoder {
       this.MCU.push(this.#processMCU());
     }
     console.log("* processing data bits: done");
+    console.log(this.MCU);
+    
   }
 
   async decode(path) {
@@ -293,6 +305,7 @@ export class Decoder {
       this.image = [...await Deno.readFile(path)];
       this.#processHeaders();
       this.#processData();
+
     } catch (error) {
       console.log(error.message);
       // console.log(error);
